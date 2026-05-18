@@ -1,5 +1,10 @@
 package main
 
+// This PoC demonstrates Bubbletea's async state flow where Init() kicks off
+// loading and Update() applies the result via a typed message. We intentionally
+// avoid quitting immediately on load/error so the rendered state is visible and
+// users can exit with q/Ctrl+C.
+
 import (
 	"flag"
 	"fmt"
@@ -19,7 +24,7 @@ const (
 	stateError
 )
 
-type dataLoadedMsg struct {
+type DataLoadedMsg struct {
 	rows []table.Row
 	err  error
 }
@@ -72,10 +77,10 @@ func fetchCmd(simulateError bool) tea.Cmd {
 		time.Sleep(2 * time.Second)
 
 		if simulateError {
-			return dataLoadedMsg{err: fmt.Errorf("harbor: connection refused")}
+			return DataLoadedMsg{err: fmt.Errorf("harbor: connection refused")}
 		}
 
-		return dataLoadedMsg{
+		return DataLoadedMsg{
 			rows: []table.Row{
 				{"nginx", "latest", "sha256:abc123"},
 				{"alpine", "3.18", "sha256:def456"},
@@ -91,15 +96,15 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case dataLoadedMsg:
+	case DataLoadedMsg:
 		if msg.err != nil {
 			m.state = stateError
 			m.errorMsg = msg.err.Error()
-			return m, tea.Quit
+			return m, nil
 		}
 		m.table.SetRows(msg.rows)
 		m.state = stateReady
-		return m, tea.Quit
+		return m, nil
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
